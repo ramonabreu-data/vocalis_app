@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  shopping-cart-api:
+    build:
+      context: ./services/shopping_cart_api
+    ports:
+      - "8001:8001"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+  backend:
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      - redis
+      - shopping-cart-api
+    env_file:
+      - .env
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  celery-worker:
+    build:
+      context: .
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      - redis
+      - backend
+    env_file:
+      - .env
+    # --- ADICIONE ESTA SEÇÃO ---
+    environment:
+      - PYTHONPATH=/app
+    # ---------------------------
+    command: celery -A src.core.celery_app.app worker --loglevel=info
